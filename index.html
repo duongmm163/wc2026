@@ -182,7 +182,8 @@
         }
 
         window.login = async () => {
-            const name = document.getElementById('username').value.trim();
+            const nameInput = document.getElementById('username');
+            const name = nameInput.value.trim();
             const btn = document.getElementById('login-btn');
             const errorEl = document.getElementById('error-msg');
             
@@ -237,14 +238,18 @@
         }
 
         window.savePrediction = async (mId) => {
-            let hVal = parseInt(document.getElementById(`h-${mId}`).value);
-            let aVal = parseInt(document.getElementById(`a-${mId}`).value);
+            const hEl = document.getElementById(`h-${mId}`);
+            const aEl = document.getElementById(`a-${mId}`);
+            if(!hEl || !aEl) return;
+
+            let hVal = parseInt(hEl.value);
+            let aVal = parseInt(aEl.value);
             
             if (isNaN(hVal) || hVal < 0) hVal = 0;
             if (isNaN(aVal) || aVal < 0) aVal = 0;
             
-            document.getElementById(`h-${mId}`).value = hVal;
-            document.getElementById(`a-${mId}`).value = aVal;
+            hEl.value = hVal;
+            aEl.value = aVal;
 
             currentUserData.predictions[mId] = { h: hVal, a: aVal };
             recalculateAllPoints();
@@ -289,15 +294,23 @@
         function renderAll() {
             const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
             const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
-            const predCount = Object.keys(currentUserData.predictions).length;
+            const predCount = Object.keys(currentUserData.predictions || {}).length;
             
             const scoreEl = document.getElementById('dash-score');
             if(scoreEl) scoreEl.innerText = currentUserData.score;
-            document.getElementById('dash-rate').innerText = predCount > 0 ? Math.round((currentUserData.correctCount/predCount)*100) + "%" : "0%";
-            document.getElementById('dash-correct').innerText = currentUserCount.correctCount || 0;
-            document.getElementById('dash-rank').innerText = rank > 0 ? `#${rank}` : "-";
+            
+            const rateEl = document.getElementById('dash-rate');
+            if(rateEl) rateEl.innerText = predCount > 0 ? Math.round((currentUserData.correctCount/predCount)*100) + "%" : "0%";
+            
+            const correctEl = document.getElementById('dash-correct');
+            if(correctEl) correctEl.innerText = currentUserData.correctCount || 0;
+            
+            const rankEl = document.getElementById('dash-rank');
+            if(rankEl) rankEl.innerText = rank > 0 ? `#${rank}` : "-";
 
             const list = document.getElementById('match-list');
+            if(!list) return;
+
             const now = new Date();
             list.innerHTML = liveMatches.map(m => {
                 const startTime = new Date(m.startTime);
@@ -337,17 +350,19 @@
             }).join('');
 
             const lb = document.getElementById('leaderboard');
-            lb.innerHTML = sorted.map((p, i) => `
-                <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'} transition-all">
-                    <div class="flex items-center gap-3">
-                        <span class="text-[10px] font-black opacity-40">${i + 1}</span>
-                        <span class="text-sm font-bold truncate w-24">${p.name}</span>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs font-black">${p.score}đ</p>
-                        <p class="text-[9px] font-bold opacity-60">${p.correctCount || 0} trận đúng</p>
-                    </div>
-                </div>`).join('');
+            if(lb) {
+                lb.innerHTML = sorted.map((p, i) => `
+                    <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'} transition-all">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-black opacity-40">${i + 1}</span>
+                            <span class="text-sm font-bold truncate w-24">${p.name}</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-black">${p.score}đ</p>
+                            <p class="text-[9px] font-bold opacity-60">${p.correctCount || 0} trận đúng</p>
+                        </div>
+                    </div>`).join('');
+            }
         }
 
         window.logout = () => { localStorage.removeItem('wc_username_test'); location.reload(); };
