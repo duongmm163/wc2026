@@ -269,12 +269,12 @@
 
             liveMatches.forEach(match => {
                 const real = liveResults[match.id];
-                const pred = currentUserData.predictions[match.id];
+                const pred = (currentUserData.predictions && currentUserData.predictions[match.id]);
                 const startTime = new Date(match.startTime);
                 const points = POINT_SYSTEM[match.round];
 
                 if (now >= startTime || real) {
-                    if (pred) {
+                    if (pred && typeof pred.h === 'number') {
                         if (real && pred.h === real.h && pred.a === real.a) {
                             total += points;
                             correct++;
@@ -292,15 +292,15 @@
         }
 
         function renderAll() {
-            const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
+            const sorted = [...allPlayersData].sort((a, b) => (b.score || 0) - (a.score || 0));
             const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
             const predCount = Object.keys(currentUserData.predictions || {}).length;
             
             const scoreEl = document.getElementById('dash-score');
-            if(scoreEl) scoreEl.innerText = currentUserData.score;
+            if(scoreEl) scoreEl.innerText = currentUserData.score || 0;
             
             const rateEl = document.getElementById('dash-rate');
-            if(rateEl) rateEl.innerText = predCount > 0 ? Math.round((currentUserData.correctCount/predCount)*100) + "%" : "0%";
+            if(rateEl) rateEl.innerText = predCount > 0 ? Math.round(((currentUserData.correctCount || 0)/predCount)*100) + "%" : "0%";
             
             const correctEl = document.getElementById('dash-correct');
             if(correctEl) correctEl.innerText = currentUserData.correctCount || 0;
@@ -358,7 +358,7 @@
                             <span class="text-sm font-bold truncate w-24">${p.name}</span>
                         </div>
                         <div class="text-right">
-                            <p class="text-xs font-black">${p.score}đ</p>
+                            <p class="text-xs font-black">${p.score || 0}đ</p>
                             <p class="text-[9px] font-bold opacity-60">${p.correctCount || 0} trận đúng</p>
                         </div>
                     </div>`).join('');
