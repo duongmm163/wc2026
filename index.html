@@ -27,7 +27,7 @@
     <div id="loading-overlay" class="fixed inset-0 bg-white/70 backdrop-blur-md z-[200] items-center justify-center flex-col gap-4">
         <div class="w-14 h-14 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         <div class="text-center">
-            <p class="font-black text-blue-600 text-lg uppercase tracking-widest">Đang kết nối</p>
+            <p class="font-black text-blue-600 text-lg uppercase tracking-widest" id="loading-text">Đang kết nối</p>
             <p class="text-slate-500 text-sm font-bold">Vui lòng chờ giây lát...</p>
         </div>
     </div>
@@ -53,11 +53,11 @@
                 </button>
             </div>
             <div id="error-msg" class="mt-4 text-center text-red-500 text-xs font-bold hidden bg-red-50 p-4 rounded-2xl border border-red-100"></div>
-            <div class="mt-8 pt-6 border-t border-slate-100">
-                <p class="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                    Danh sách người chơi: <br>
-                    An, Bình, Cường, Dung, Giang, Hương, Tuấn, Minh
-                </p>
+            <div class="mt-8 pt-6 border-t border-slate-100 text-center">
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Người chơi hợp lệ:</p>
+                <div id="valid-users-list" class="text-[10px] text-slate-500 font-medium flex flex-wrap justify-center gap-1 opacity-70">
+                    Đang tải danh sách...
+                </div>
             </div>
         </div>
     </div>
@@ -138,10 +138,11 @@
         // --- CẤU HÌNH LIÊN KẾT GOOGLE SHEET ---
         const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzJ-5CmhVEPMIyL0mncwTbgcYH5pWMVve_scGyLUGfGeC8F_4qQsvAiSWGSZZInHUHa/exec"; 
         
-        const VALID_USERS = ["An", "Bình", "Cường", "Dung", "Giang", "Hương", "Tuấn", "Minh"];
+        // Danh sách người chơi hợp lệ (Sẽ được tải từ Google Sheet)
+        let VALID_USERS = [];
         const POINT_SYSTEM = { "GROUP": 10, "R32": 15, "FINAL": 100 };
 
-        // Danh sách trận đấu (Bạn có thể cập nhật kết quả tại đây hoặc sau này tôi hướng dẫn cách lấy từ Sheet)
+        // Danh sách trận đấu
         let liveMatches = [
             { id: 101, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mexico", away: "Mali", status: "finished" },
             { id: 102, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mỹ", away: "Úc", status: "live" },
@@ -156,46 +157,76 @@
         let currentUserData = { name: "", predictions: {}, score: 0, correctCount: 0 };
         let allPlayersData = [];
 
-        const toggleLoading = (show) => {
+        const toggleLoading = (show, text = "Đang kết nối") => {
             const overlay = document.getElementById('loading-overlay');
+            const textEl = document.getElementById('loading-text');
+            if(textEl) textEl.innerText = text;
             if(show) overlay.classList.add('active');
             else overlay.classList.remove('active');
         };
 
         // Đồng bộ dữ liệu: Lấy tất cả thông tin người chơi từ Google Sheet về
-        window.syncData = async () => {
-            toggleLoading(true);
+        window.syncData = async (silent = false) => {
+            if(!silent) toggleLoading(true, "Đang đồng bộ dữ liệu...");
             try {
                 const response = await fetch(GOOGLE_SHEET_URL);
                 const data = await response.json();
                 
                 allPlayersData = [];
+                VALID_USERS = [];
+
                 // Skip headerRow [Name, Data]
                 for (let i = 1; i < data.length; i++) {
+                    const rawName = data[i][0];
+                    const rawData = data[i][1];
+                    
+                    if (rawName) {
+                        VALID_USERS.push(rawName);
+                    }
+
                     try {
-                        const player = JSON.parse(data[i][1]);
+                        const player = JSON.parse(rawData);
+                        // Đảm bảo tên trong JSON khớp với tên ở cột A của Sheet
+                        player.name = rawName; 
                         allPlayersData.push(player);
-                    } catch(e) {}
+                    } catch(e) {
+                        // Nếu chưa có dữ liệu JSON (người mới), khởi tạo mặc định
+                        allPlayersData.push({ name: rawName, predictions: {}, score: 0, correctCount: 0 });
+                    }
                 }
 
-                // Cập nhật lại dữ liệu local từ Cloud
-                const me = allPlayersData.find(p => p.name === currentUserData.name);
-                if (me) {
-                    currentUserData.predictions = me.predictions || {};
+                // Cập nhật lại danh sách hiển thị ở màn hình chờ
+                updateValidUsersUI();
+
+                // Cập nhật lại dữ liệu local từ Cloud cho người đang đăng nhập
+                if (currentUserData.name) {
+                    const me = allPlayersData.find(p => p.name.toLowerCase() === currentUserData.name.toLowerCase());
+                    if (me) {
+                        currentUserData.predictions = me.predictions || {};
+                    }
+                    recalculatePoints();
                 }
                 
-                recalculatePoints();
                 renderAll();
             } catch (e) {
                 console.error("Lỗi đồng bộ:", e);
             } finally {
-                toggleLoading(false);
+                if(!silent) toggleLoading(false);
             }
         };
+
+        function updateValidUsersUI() {
+            const listEl = document.getElementById('valid-users-list');
+            if (listEl) {
+                listEl.innerHTML = VALID_USERS.map(u => `<span>${u}</span>`).join('<span class="mx-1">•</span>');
+            }
+        }
 
         // Gửi dữ liệu cá nhân lên Google Sheet
         const pushData = async () => {
             try {
+                // Ta cần gửi dữ liệu ở định dạng mà Apps Script mong đợi
+                // Apps Script của bạn thường nhận POST với body là JSON
                 await fetch(GOOGLE_SHEET_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -204,17 +235,20 @@
                     body: JSON.stringify(currentUserData)
                 });
                 // Sau khi gửi, chờ 1s rồi lấy lại toàn bộ để cập nhật BXH mới nhất
-                setTimeout(window.syncData, 1000);
+                setTimeout(() => window.syncData(true), 1500);
             } catch (e) {
                 console.error("Lỗi gửi dữ liệu:", e);
             }
         };
 
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            // Tải danh sách người chơi trước khi cho phép đăng nhập
+            await window.syncData();
+            
             const savedName = localStorage.getItem('wc_active_user');
             if (savedName && VALID_USERS.some(u => u.toLowerCase() === savedName.toLowerCase())) {
-                currentUserData.name = savedName;
-                window.syncData().then(startAppUI);
+                currentUserData.name = VALID_USERS.find(u => u.toLowerCase() === savedName.toLowerCase());
+                startAppUI();
             }
         });
 
@@ -226,14 +260,14 @@
 
             const matchedName = VALID_USERS.find(u => u.toLowerCase() === name.toLowerCase());
             if (!matchedName) {
-                errorEl.innerText = "Tên này không có trong danh sách đăng ký hệ thống.";
+                errorEl.innerText = "Tên này không có trong danh sách đăng ký hệ thống. Hãy liên hệ Admin.";
                 errorEl.classList.remove('hidden');
                 return;
             }
 
             currentUserData.name = matchedName;
             localStorage.setItem('wc_active_user', matchedName);
-            window.syncData().then(startAppUI);
+            startAppUI();
         };
 
         function startAppUI() {
@@ -272,8 +306,9 @@
         }
 
         function renderAll() {
+            // Sắp xếp BXH
             const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
-            const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
+            const rank = sorted.findIndex(p => p.name.toLowerCase() === currentUserData.name.toLowerCase()) + 1;
             const predCount = Object.keys(currentUserData.predictions).length;
 
             document.getElementById('dash-score').innerText = currentUserData.score;
@@ -324,14 +359,14 @@
 
             const lb = document.getElementById('leaderboard');
             lb.innerHTML = sorted.map((p, i) => `
-                <div class="flex items-center justify-between p-4 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-xl scale-[1.02]' : 'bg-slate-50'} transition-all duration-300">
+                <div class="flex items-center justify-between p-4 rounded-2xl ${p.name.toLowerCase() === currentUserData.name.toLowerCase() ? 'bg-blue-600 text-white shadow-xl scale-[1.02]' : 'bg-slate-50'} transition-all duration-300">
                     <div class="flex items-center gap-4">
-                        <span class="text-[10px] font-black ${p.name === currentUserData.name ? 'text-blue-200' : 'text-slate-400'}">${i+1}</span>
+                        <span class="text-[10px] font-black ${p.name.toLowerCase() === currentUserData.name.toLowerCase() ? 'text-blue-200' : 'text-slate-400'}">${i+1}</span>
                         <span class="text-sm font-black uppercase tracking-tight">${p.name}</span>
                     </div>
                     <div class="text-right">
-                        <span class="text-lg font-black">${p.score}</span>
-                        <span class="text-[9px] font-bold block opacity-60 uppercase">${p.correctCount} Trận Đúng</span>
+                        <span class="text-lg font-black">${p.score || 0}</span>
+                        <span class="text-[9px] font-bold block opacity-60 uppercase">${p.correctCount || 0} Trận Đúng</span>
                     </div>
                 </div>`).join('');
         }
