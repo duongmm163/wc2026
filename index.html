@@ -16,92 +16,117 @@
         .is-locked { opacity: 0.8; }
         .pulse-live { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        
+        #loading-overlay { display: none; }
+        #loading-overlay.active { display: flex; }
     </style>
 </head>
 <body class="min-h-screen">
+
+    <!-- Lớp phủ khi đang đồng bộ dữ liệu -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/70 backdrop-blur-md z-[200] items-center justify-center flex-col gap-4">
+        <div class="w-14 h-14 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <div class="text-center">
+            <p class="font-black text-blue-600 text-lg uppercase tracking-widest">Đang kết nối</p>
+            <p class="text-slate-500 text-sm font-bold">Vui lòng chờ giây lát...</p>
+        </div>
+    </div>
 
     <!-- Màn hình đăng nhập -->
     <div id="login-screen" class="fixed inset-0 bg-slate-950 z-[100] flex items-center justify-center p-4">
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md">
             <div class="text-center mb-8">
                 <div class="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span class="text-4xl">⚽</span>
+                    <span class="text-4xl text-blue-600">🏆</span>
                 </div>
-                <h1 class="text-3xl font-black text-slate-900 leading-tight">WC 2026<br><span class="text-blue-600 italic">Bản Test Trạm</span></h1>
-                <p class="text-slate-500 font-medium mt-2">Hệ thống dự đoán nội bộ</p>
+                <h1 class="text-3xl font-black text-slate-900 leading-tight tracking-tight">WC 2026<br><span class="text-blue-600 italic uppercase">Predictor</span></h1>
+                <div class="mt-4 flex items-center justify-center gap-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Hệ thống đang trực tuyến</p>
+                </div>
             </div>
             <div class="space-y-4">
-                <div class="relative">
-                    <input type="text" id="username" placeholder="Nhập tên đăng ký của bạn..." 
-                           class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold transition-all">
-                </div>
-                <button id="login-btn" onclick="window.login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all">
-                    Xác nhận vào hệ thống
+                <input type="text" id="username" placeholder="Nhập tên đăng ký của bạn..." 
+                       class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold transition-all text-center text-lg">
+                <button id="login-btn" onclick="window.login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200 transition-all uppercase tracking-widest">
+                    Vào dự đoán
                 </button>
             </div>
-            <div id="error-msg" class="mt-4 text-center text-red-500 text-xs font-bold hidden bg-red-50 p-3 rounded-xl border border-red-100"></div>
-            <div class="mt-6 pt-6 border-t border-slate-100">
-                <p class="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest">Danh sách hợp lệ: An, Bình, Cường, Dung, Giang...</p>
+            <div id="error-msg" class="mt-4 text-center text-red-500 text-xs font-bold hidden bg-red-50 p-4 rounded-2xl border border-red-100"></div>
+            <div class="mt-8 pt-6 border-t border-slate-100">
+                <p class="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                    Danh sách người chơi: <br>
+                    An, Bình, Cường, Dung, Giang, Hương, Tuấn, Minh
+                </p>
             </div>
         </div>
     </div>
 
-    <!-- Nội dung chính -->
+    <!-- Giao diện chính sau khi đăng nhập -->
     <div id="main-app" class="hidden">
         <nav class="bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
             <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span id="mode-badge" class="bg-slate-600 text-white p-1.5 rounded-lg text-[10px] font-black italic uppercase">Internal Mode</span>
-                    <span class="font-bold text-slate-800 uppercase tracking-tight">WC Predictor</span>
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter">Live Sync</div>
+                    <span class="font-black text-slate-800 uppercase tracking-tighter">WC Office</span>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div id="display-user" class="text-sm font-bold text-slate-700"></div>
-                    <button onclick="window.logout()" class="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">Thoát</button>
+                <div class="flex items-center gap-6">
+                    <div id="display-user" class="text-sm font-black text-slate-700 border-r pr-6 hidden md:block"></div>
+                    <button onclick="window.logout()" class="text-xs font-black text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-red-100">ĐĂNG XUẤT</button>
                 </div>
             </div>
         </nav>
 
         <main class="max-w-6xl mx-auto px-4 py-8">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div class="glass-card p-6 border-b-4 border-blue-500">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Điểm của bạn</p>
-                    <h2 id="dash-score" class="text-3xl font-black text-slate-900">0</h2>
+            <!-- Thống kê cá nhân -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                <div class="glass-card p-6 border-l-8 border-blue-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tổng điểm</p>
+                    <h2 id="dash-score" class="text-4xl font-black text-slate-900">0</h2>
                 </div>
-                <div class="glass-card p-6 border-b-4 border-green-500">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hiệu suất</p>
-                    <h2 id="dash-rate" class="text-3xl font-black text-slate-900">0%</h2>
-                </div>
-                <div class="glass-card p-6 border-b-4 border-orange-500">
+                <div class="glass-card p-6 border-l-8 border-emerald-500">
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Đúng tỉ số</p>
-                    <h2 id="dash-correct" class="text-3xl font-black text-slate-900">0</h2>
+                    <h2 id="dash-correct" class="text-4xl font-black text-slate-900">0</h2>
                 </div>
-                <div class="glass-card p-6 border-b-4 border-purple-500">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Thứ hạng</p>
-                    <h2 id="dash-rank" class="text-3xl font-black text-slate-900">-</h2>
+                <div class="glass-card p-6 border-l-8 border-orange-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tỉ lệ thắng</p>
+                    <h2 id="dash-rate" class="text-4xl font-black text-slate-900">0%</h2>
+                </div>
+                <div class="glass-card p-6 border-l-8 border-purple-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng văn phòng</p>
+                    <h2 id="dash-rank" class="text-4xl font-black text-slate-900">-</h2>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Danh sách trận đấu -->
                 <div class="lg:col-span-8">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-xl font-black text-slate-800">Trận Đấu Hôm Nay</h3>
-                            <span class="w-2 h-2 bg-blue-500 rounded-full pulse-live"></span>
+                    <div class="flex items-center justify-between mb-8">
+                        <div>
+                            <h3 class="text-2xl font-black text-slate-800 uppercase tracking-tight">Trận đấu hôm nay</h3>
+                            <p id="current-time" class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest"></p>
                         </div>
-                        <span class="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm" id="current-time"></span>
+                        <button onclick="window.syncData()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:text-blue-600 transition-all font-bold text-xs">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            REFRESH
+                        </button>
                     </div>
-                    <div id="match-list" class="space-y-4"></div>
+                    <div id="match-list" class="space-y-6"></div>
                 </div>
 
+                <!-- Bảng xếp hạng -->
                 <div class="lg:col-span-4">
-                    <div class="glass-card p-6 sticky top-24">
-                        <h3 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-                            <span>📊</span> Bảng Xếp Hạng
-                        </h3>
-                        <div id="leaderboard" class="space-y-3"></div>
-                        <div class="mt-6 p-4 bg-amber-50 rounded-2xl border border-dashed border-amber-200">
-                            <h4 class="text-[11px] font-black text-amber-700 uppercase mb-2">Thông báo:</h4>
-                            <p class="text-[10px] text-amber-600 font-medium">Hệ thống đang chạy Offline. Kết quả của bạn được lưu tại trình duyệt này.</p>
+                    <div class="glass-card p-8 sticky top-24 overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10">
+                            <span class="text-6xl">📊</span>
+                        </div>
+                        <h3 class="text-xl font-black text-slate-800 mb-8 uppercase tracking-tight relative">Bảng xếp hạng</h3>
+                        <div id="leaderboard" class="space-y-4 relative"></div>
+                        <div class="mt-8 pt-6 border-t border-slate-100">
+                            <div class="flex items-center gap-3 text-emerald-600">
+                                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                <p class="text-[10px] font-black uppercase tracking-widest">Đã đồng bộ với Google Sheets</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -110,18 +135,13 @@
     </div>
 
     <script type="module">
-        // DANH SÁCH NGƯỜI CHƠI HỢP LỆ (Bạn có thể thêm bớt ở đây)
+        // --- CẤU HÌNH LIÊN KẾT GOOGLE SHEET ---
+        const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzJ-5CmhVEPMIyL0mncwTbgcYH5pWMVve_scGyLUGfGeC8F_4qQsvAiSWGSZZInHUHa/exec"; 
+        
         const VALID_USERS = ["An", "Bình", "Cường", "Dung", "Giang", "Hương", "Tuấn", "Minh"];
-
-        // Dữ liệu mô phỏng cho các người chơi khác (Vì không dùng Cloud nên ta giả lập để có BXH)
-        const MOCK_PLAYERS = [
-            { name: "Minh", score: 45, correctCount: 3 },
-            { name: "Hương", score: 20, correctCount: 2 },
-            { name: "Tuấn", score: -10, correctCount: 0 }
-        ];
-
         const POINT_SYSTEM = { "GROUP": 10, "R32": 15, "FINAL": 100 };
 
+        // Danh sách trận đấu (Bạn có thể cập nhật kết quả tại đây hoặc sau này tôi hướng dẫn cách lấy từ Sheet)
         let liveMatches = [
             { id: 101, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mexico", away: "Mali", status: "finished" },
             { id: 102, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mỹ", away: "Úc", status: "live" },
@@ -136,13 +156,65 @@
         let currentUserData = { name: "", predictions: {}, score: 0, correctCount: 0 };
         let allPlayersData = [];
 
-        // Kiểm tra session cũ khi load trang
+        const toggleLoading = (show) => {
+            const overlay = document.getElementById('loading-overlay');
+            if(show) overlay.classList.add('active');
+            else overlay.classList.remove('active');
+        };
+
+        // Đồng bộ dữ liệu: Lấy tất cả thông tin người chơi từ Google Sheet về
+        window.syncData = async () => {
+            toggleLoading(true);
+            try {
+                const response = await fetch(GOOGLE_SHEET_URL);
+                const data = await response.json();
+                
+                allPlayersData = [];
+                // Skip headerRow [Name, Data]
+                for (let i = 1; i < data.length; i++) {
+                    try {
+                        const player = JSON.parse(data[i][1]);
+                        allPlayersData.push(player);
+                    } catch(e) {}
+                }
+
+                // Cập nhật lại dữ liệu local từ Cloud
+                const me = allPlayersData.find(p => p.name === currentUserData.name);
+                if (me) {
+                    currentUserData.predictions = me.predictions || {};
+                }
+                
+                recalculatePoints();
+                renderAll();
+            } catch (e) {
+                console.error("Lỗi đồng bộ:", e);
+            } finally {
+                toggleLoading(false);
+            }
+        };
+
+        // Gửi dữ liệu cá nhân lên Google Sheet
+        const pushData = async () => {
+            try {
+                await fetch(GOOGLE_SHEET_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentUserData)
+                });
+                // Sau khi gửi, chờ 1s rồi lấy lại toàn bộ để cập nhật BXH mới nhất
+                setTimeout(window.syncData, 1000);
+            } catch (e) {
+                console.error("Lỗi gửi dữ liệu:", e);
+            }
+        };
+
         window.addEventListener('load', () => {
             const savedName = localStorage.getItem('wc_active_user');
             if (savedName && VALID_USERS.some(u => u.toLowerCase() === savedName.toLowerCase())) {
                 currentUserData.name = savedName;
-                loadLocalData();
-                startAppUI();
+                window.syncData().then(startAppUI);
             }
         });
 
@@ -150,48 +222,24 @@
             const nameInput = document.getElementById('username');
             const name = nameInput.value.trim();
             const errorEl = document.getElementById('error-msg');
-            
             errorEl.classList.add('hidden');
 
-            if (!name) {
-                showError("Vui lòng nhập tên của bạn.");
-                return;
-            }
-
-            // Kiểm tra tên trong danh sách hợp lệ
             const matchedName = VALID_USERS.find(u => u.toLowerCase() === name.toLowerCase());
-
             if (!matchedName) {
-                showError("Tên này không có trong danh sách đăng ký. Vui lòng liên hệ Admin.");
+                errorEl.innerText = "Tên này không có trong danh sách đăng ký hệ thống.";
+                errorEl.classList.remove('hidden');
                 return;
             }
 
-            // Đăng nhập thành công
             currentUserData.name = matchedName;
             localStorage.setItem('wc_active_user', matchedName);
-            loadLocalData();
-            startAppUI();
+            window.syncData().then(startAppUI);
         };
-
-        function showError(msg) {
-            const errorEl = document.getElementById('error-msg');
-            errorEl.innerText = msg;
-            errorEl.classList.remove('hidden');
-        }
-
-        function loadLocalData() {
-            const local = localStorage.getItem(`wc_storage_${currentUserData.name}`);
-            if (local) {
-                const parsed = JSON.parse(local);
-                currentUserData.predictions = parsed.predictions || {};
-            }
-            recalculatePoints();
-        }
 
         function startAppUI() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
-            document.getElementById('display-user').innerText = "Thành viên: " + currentUserData.name;
+            document.getElementById('display-user').innerText = "THÀNH VIÊN: " + currentUserData.name.toUpperCase();
             renderAll();
         }
 
@@ -205,7 +253,6 @@
                 const pred = currentUserData.predictions[match.id];
                 const startTime = new Date(match.startTime);
 
-                // Nếu trận đã bắt đầu hoặc đã kết thúc
                 if (now >= startTime || match.status === 'finished') {
                     if (pred && typeof pred.h === 'number') {
                         if (real && pred.h === real.h && pred.a === real.a) {
@@ -215,7 +262,6 @@
                             total -= POINT_SYSTEM[match.round];
                         }
                     } else {
-                        // Không dự đoán bị trừ điểm
                         total -= POINT_SYSTEM[match.round];
                     }
                 }
@@ -226,66 +272,66 @@
         }
 
         function renderAll() {
-            // Hợp nhất dữ liệu người dùng hiện tại và dữ liệu giả lập để tạo BXH
-            // Lưu ý: Trong thực tế, bạn cần Cloud để lấy dữ liệu người chơi thật khác.
-            const others = MOCK_PLAYERS.filter(p => p.name !== currentUserData.name);
-            allPlayersData = [currentUserData, ...others].sort((a, b) => b.score - a.score);
-
-            const rank = allPlayersData.findIndex(p => p.name === currentUserData.name) + 1;
+            const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
+            const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
             const predCount = Object.keys(currentUserData.predictions).length;
 
-            // Update Dash
             document.getElementById('dash-score').innerText = currentUserData.score;
             document.getElementById('dash-rate').innerText = predCount > 0 ? Math.round((currentUserData.correctCount / predCount) * 100) + "%" : "0%";
             document.getElementById('dash-correct').innerText = currentUserData.correctCount;
             document.getElementById('dash-rank').innerText = rank > 0 ? `#${rank}` : "-";
 
-            // Render Matches
             const list = document.getElementById('match-list');
             const now = new Date();
             list.innerHTML = liveMatches.map(m => {
                 const isLocked = now >= new Date(m.startTime);
                 const pred = currentUserData.predictions[m.id] || { h: "", a: "" };
                 const real = liveResults[m.id];
-                let statusBadge = "";
+                let badge = "";
 
                 if (m.status === 'finished') {
                     const win = pred.h !== "" && pred.h === real.h && pred.a === real.a;
-                    statusBadge = `<span class="text-[10px] font-black ${win?'text-green-600':'text-red-500'}">KQ: ${real.h}-${real.a} (${win?'+':'-'}${POINT_SYSTEM[m.round]}đ)</span>`;
+                    badge = `<div class="bg-slate-100 px-3 py-1 rounded-lg text-center">
+                        <span class="text-[9px] font-black text-slate-400 block uppercase">Kết quả</span>
+                        <span class="text-sm font-black ${win?'text-emerald-600':'text-red-500'}">${real.h}-${real.a}</span>
+                    </div>`;
                 } else if (isLocked) {
-                    statusBadge = `<span class="text-[10px] font-black text-orange-500 pulse-live italic">KHÓA DỰ ĐOÁN</span>`;
+                    badge = `<span class="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black italic pulse-live">LIVE</span>`;
                 }
 
                 return `
-                    <div class="glass-card p-5 flex flex-col md:flex-row items-center justify-between gap-4 border-2 ${isLocked?'bg-slate-50/50 border-slate-100':'border-white'}">
-                        <div class="flex-1 flex items-center justify-center gap-4">
-                            <span class="text-sm font-bold w-20 text-right">${m.home}</span>
-                            <div class="flex items-center gap-1">
+                    <div class="glass-card p-6 flex flex-col md:flex-row items-center justify-between gap-6 border-2 ${isLocked?'bg-slate-50/50 border-slate-100':'border-white'} relative overflow-hidden">
+                        ${isLocked ? '<div class="absolute top-0 left-0 w-1 h-full bg-slate-300"></div>' : ''}
+                        <div class="flex-1 flex items-center justify-center gap-6">
+                            <span class="text-base font-black text-slate-800 w-24 text-right truncate uppercase">${m.home}</span>
+                            <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border-2 border-slate-100">
                                 <input type="number" value="${pred.h}" onchange="window.updateScore(${m.id}, 'h', this.value)" 
                                        class="score-input" ${isLocked?'disabled':''}>
-                                <span class="font-black text-slate-300">:</span>
+                                <span class="font-black text-slate-300 text-xl">:</span>
                                 <input type="number" value="${pred.a}" onchange="window.updateScore(${m.id}, 'a', this.value)" 
                                        class="score-input" ${isLocked?'disabled':''}>
                             </div>
-                            <span class="text-sm font-bold w-20 text-left">${m.away}</span>
+                            <span class="text-base font-black text-slate-800 w-24 text-left truncate uppercase">${m.away}</span>
                         </div>
-                        <div class="text-center md:text-right">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">${m.round}</p>
-                            ${statusBadge}
+                        <div class="flex flex-col items-center md:items-end gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">${m.round}</span>
+                                ${badge}
+                            </div>
                         </div>
                     </div>`;
             }).join('');
 
-            // Render Leaderboard
             const lb = document.getElementById('leaderboard');
-            lb.innerHTML = allPlayersData.map((p, i) => `
-                <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'}">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xs font-black opacity-50">${i+1}</span>
-                        <span class="text-sm font-bold">${p.name}</span>
+            lb.innerHTML = sorted.map((p, i) => `
+                <div class="flex items-center justify-between p-4 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-xl scale-[1.02]' : 'bg-slate-50'} transition-all duration-300">
+                    <div class="flex items-center gap-4">
+                        <span class="text-[10px] font-black ${p.name === currentUserData.name ? 'text-blue-200' : 'text-slate-400'}">${i+1}</span>
+                        <span class="text-sm font-black uppercase tracking-tight">${p.name}</span>
                     </div>
                     <div class="text-right">
-                        <span class="text-xs font-black">${p.score}đ</span>
+                        <span class="text-lg font-black">${p.score}</span>
+                        <span class="text-[9px] font-bold block opacity-60 uppercase">${p.correctCount} Trận Đúng</span>
                     </div>
                 </div>`).join('');
         }
@@ -293,24 +339,22 @@
         window.updateScore = (mId, side, val) => {
             let v = parseInt(val);
             if (isNaN(v) || v < 0) v = 0;
-            
             if (!currentUserData.predictions[mId]) currentUserData.predictions[mId] = { h: 0, a: 0 };
             currentUserData.predictions[mId][side] = v;
             
             recalculatePoints();
-            localStorage.setItem(`wc_storage_${currentUserData.name}`, JSON.stringify(currentUserData));
             renderAll();
+            pushData(); 
         };
 
-        window.logout = () => {
-            localStorage.removeItem('wc_active_user');
-            location.reload();
-        };
-
+        window.logout = () => { localStorage.removeItem('wc_active_user'); location.reload(); };
+        
         setInterval(() => {
             const el = document.getElementById('current-time');
-            if(el) el.innerText = new Date().toLocaleString('vi-VN');
+            if(el) el.innerText = new Date().toLocaleString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }, 1000);
+
+        window.syncData = syncData;
     </script>
 </body>
 </html>
