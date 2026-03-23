@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC 2026 TEST VERSION</title>
+    <title>WC 2026 PREDICTOR</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
@@ -33,10 +33,11 @@
             <div class="space-y-4">
                 <input type="text" id="username" placeholder="Nhập tên của bạn..." 
                        class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold">
-                <button id="login-btn" onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all">
+                <button id="login-btn" onclick="window.login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all">
                     Bắt đầu tham gia
                 </button>
             </div>
+            <div id="error-msg" class="mt-4 text-center text-red-500 text-xs font-bold hidden"></div>
         </div>
     </div>
 
@@ -50,7 +51,7 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <div id="display-user" class="text-sm font-bold text-slate-700"></div>
-                    <button onclick="logout()" class="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">Thoát</button>
+                    <button onclick="window.logout()" class="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">Thoát</button>
                 </div>
             </div>
         </nav>
@@ -110,18 +111,32 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Firebase configuration (Tự động điền bởi môi trường)
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'wc-2026-test-v1';
+        // CẤU HÌNH FIREBASE - Sử dụng cấu hình mặc định cho bản Test
+        // Khi bạn đưa lên Hosting riêng, code này sẽ tự nhận diện môi trường
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "", // Hệ thống sẽ tự cấp Key khi chạy
+            authDomain: "wc-2026-demo.firebaseapp.com",
+            projectId: "wc-2026-demo",
+            storageBucket: "wc-2026-demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'wc-2026-production';
+        
+        let app, db, auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
+        }
 
         const POINT_SYSTEM = { "GROUP": 10, "R32": 15, "FINAL": 100 };
 
-        // Dữ liệu giả lập để test
         let liveMatches = [
             { id: 101, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mexico", away: "Mali", status: "finished" },
             { id: 102, round: "GROUP", startTime: "2024-01-01T00:00:00", home: "Mỹ", away: "Úc", status: "live" },
@@ -137,16 +152,16 @@
         let currentUserData = { name: "", predictions: {}, score: 0, correctCount: 0 };
         let allPlayersData = [];
 
-        // Khởi tạo Auth
+        // Khởi tạo Auth an toàn
         const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
+            try {
                 await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Auth Error:", e);
             }
         };
 
-        initAuth().catch(console.error);
+        initAuth();
 
         onAuthStateChanged(auth, (u) => {
             user = u;
@@ -161,17 +176,32 @@
 
         window.login = async () => {
             const name = document.getElementById('username').value.trim();
+            const btn = document.getElementById('login-btn');
+            const errorEl = document.getElementById('error-msg');
+            
             if (!name) return;
             
-            currentUserData.name = name;
-            localStorage.setItem('wc_username_test', name);
-            
-            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', name);
-            const docSnap = await getDoc(userRef);
-            if (!docSnap.exists()) {
-                await setDoc(userRef, { name, predictions: {}, score: 0, correctCount: 0 });
+            btn.disabled = true;
+            btn.innerText = "Đang kết nối...";
+
+            try {
+                currentUserData.name = name;
+                localStorage.setItem('wc_username_test', name);
+                
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', name);
+                const docSnap = await getDoc(userRef);
+                
+                if (!docSnap.exists()) {
+                    await setDoc(userRef, { name, predictions: {}, score: 0, correctCount: 0 });
+                }
+                setupRealtimeData();
+            } catch (e) {
+                console.error("Login Error:", e);
+                errorEl.innerText = "Lỗi kết nối Server. Vui lòng thử lại.";
+                errorEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerText = "Bắt đầu tham gia";
             }
-            setupRealtimeData();
         };
 
         function setupRealtimeData() {
@@ -189,7 +219,9 @@
 
                 recalculateAllPoints();
                 renderAll();
-            }, (err) => console.error("Lỗi Firestore:", err));
+            }, (err) => {
+                console.error("Lỗi Firestore:", err);
+            });
         }
 
         window.savePrediction = async (mId) => {
@@ -205,8 +237,12 @@
             currentUserData.predictions[mId] = { h: hVal, a: aVal };
             recalculateAllPoints();
 
-            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', currentUserData.name);
-            await setDoc(userRef, currentUserData);
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', currentUserData.name);
+                await setDoc(userRef, currentUserData);
+            } catch (e) {
+                console.error("Save Error:", e);
+            }
         };
 
         function recalculateAllPoints() {
@@ -229,7 +265,7 @@
                             total -= points;
                         }
                     } else {
-                        total -= points; // Trừ điểm nếu không dự đoán
+                        total -= points;
                     }
                 }
             });
@@ -239,12 +275,6 @@
         }
 
         function renderAll() {
-            renderDashboard();
-            renderMatches();
-            renderLeaderboard();
-        }
-
-        function renderDashboard() {
             const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
             const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
             const predCount = Object.keys(currentUserData.predictions).length;
@@ -253,18 +283,15 @@
             document.getElementById('dash-rate').innerText = predCount > 0 ? Math.round((currentUserData.correctCount/predCount)*100) + "%" : "0%";
             document.getElementById('dash-correct').innerText = currentUserData.correctCount;
             document.getElementById('dash-rank').innerText = rank > 0 ? `#${rank}` : "-";
-        }
 
-        function renderMatches() {
+            // Render Matches
             const list = document.getElementById('match-list');
             const now = new Date();
-            
             list.innerHTML = liveMatches.map(m => {
                 const startTime = new Date(m.startTime);
                 const isLocked = now >= startTime;
                 const pred = (currentUserData.predictions && currentUserData.predictions[m.id]) || { h: "", a: "" };
                 const real = liveResults[m.id];
-                
                 let badge = "";
                 let cardClass = "border-slate-100";
 
@@ -282,31 +309,23 @@
                 return `
                     <div class="glass-card p-5 flex flex-col md:flex-row items-center justify-between gap-4 border-2 ${cardClass} ${isLocked?'is-locked':''}">
                         <div class="flex-1 flex items-center justify-center gap-6">
-                            <div class="text-center w-24">
-                                <p class="text-sm font-extrabold text-slate-700 truncate">${m.home}</p>
-                            </div>
+                            <div class="text-center w-24"><p class="text-sm font-extrabold text-slate-700 truncate">${m.home}</p></div>
                             <div class="flex items-center gap-2">
-                                <input type="number" id="h-${m.id}" value="${pred.h}" min="0" onchange="savePrediction(${m.id})" class="score-input" ${isLocked?'disabled':''}>
+                                <input type="number" id="h-${m.id}" value="${pred.h}" min="0" onchange="window.savePrediction(${m.id})" class="score-input" ${isLocked?'disabled':''}>
                                 <span class="text-slate-300 font-black">-</span>
-                                <input type="number" id="a-${m.id}" value="${pred.a}" min="0" onchange="savePrediction(${m.id})" class="score-input" ${isLocked?'disabled':''}>
+                                <input type="number" id="a-${m.id}" value="${pred.a}" min="0" onchange="window.savePrediction(${m.id})" class="score-input" ${isLocked?'disabled':''}>
                             </div>
-                            <div class="text-center w-24">
-                                <p class="text-sm font-extrabold text-slate-700 truncate">${m.away}</p>
-                            </div>
+                            <div class="text-center w-24"><p class="text-sm font-extrabold text-slate-700 truncate">${m.away}</p></div>
                         </div>
                         <div class="flex flex-col items-center md:items-end gap-1">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${m.round} • ${m.status === 'upcoming' ? 'SẮP ĐÁ' : 'HẾT GIỜ'}</p>
                             ${badge}
                         </div>
-                    </div>
-                `;
+                    </div>`;
             }).join('');
-        }
 
-        function renderLeaderboard() {
+            // Render Leaderboard
             const lb = document.getElementById('leaderboard');
-            const sorted = [...allPlayersData].sort((a, b) => b.score - a.score);
-
             lb.innerHTML = sorted.map((p, i) => `
                 <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'} transition-all">
                     <div class="flex items-center gap-3">
@@ -317,12 +336,12 @@
                         <p class="text-xs font-black">${p.score}đ</p>
                         <p class="text-[9px] font-bold opacity-60">${p.correctCount} trận đúng</p>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
         window.logout = () => { localStorage.removeItem('wc_username_test'); location.reload(); };
-
+        window.savePrediction = savePrediction;
+        
         setInterval(() => {
             const el = document.getElementById('current-time');
             if(el) el.innerText = new Date().toLocaleString('vi-VN');
