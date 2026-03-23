@@ -38,6 +38,7 @@
                 </button>
             </div>
             <div id="error-msg" class="mt-4 text-center text-red-500 text-xs font-bold hidden"></div>
+            <div id="connection-status" class="mt-4 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">Đang kiểm tra kết nối...</div>
         </div>
     </div>
 
@@ -46,7 +47,7 @@
         <nav class="bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
             <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <span class="bg-blue-600 text-white p-1.5 rounded-lg text-xs font-black italic">SANDBOX</span>
+                    <span id="mode-badge" class="bg-blue-600 text-white p-1.5 rounded-lg text-xs font-black italic uppercase">LIVE</span>
                     <span class="font-bold text-slate-800 uppercase tracking-tight">WC Predictor</span>
                 </div>
                 <div class="flex items-center gap-4">
@@ -113,31 +114,38 @@
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // CẤU HÌNH AN TOÀN - Tránh crash khi chạy bên ngoài
         const getFirebaseConfig = () => {
             try {
-                if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    const cfg = JSON.parse(__firebase_config);
+                    if (cfg.apiKey) return cfg;
+                }
             } catch (e) {}
-            return {
-                apiKey: "", 
-                authDomain: "wc-2026-demo.firebaseapp.com",
-                projectId: "wc-2026-demo",
-                storageBucket: "wc-2026-demo.appspot.com",
-                messagingSenderId: "123456789",
-                appId: "1:123456789:web:abcdef"
-            };
+            return null; // Trả về null nếu không có config thật
         };
 
         const firebaseConfig = getFirebaseConfig();
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'wc-2026-production';
         
         let app, db, auth;
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) {
-            console.error("Lỗi khởi tạo Firebase:", e);
+        let isOfflineMode = false;
+
+        // Thử khởi tạo Firebase
+        if (firebaseConfig) {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                document.getElementById('connection-status').innerText = "Đã kết nối Cloud";
+            } catch (e) {
+                console.warn("Firebase Init Error, switching to Offline Mode");
+                isOfflineMode = true;
+            }
+        } else {
+            isOfflineMode = true;
+            document.getElementById('connection-status').innerText = "Chế độ Offline (Local)";
+            const badge = document.getElementById('mode-badge');
+            if(badge) { badge.innerText = "OFFLINE"; badge.classList.replace('bg-blue-600', 'bg-slate-500'); }
         }
 
         const POINT_SYSTEM = { "GROUP": 10, "R32": 15, "FINAL": 100 };
@@ -159,81 +167,93 @@
 
         // Khởi tạo Auth
         const initAuth = async () => {
+            if (isOfflineMode || !auth) return;
             try {
-                if (auth) await signInAnonymously(auth);
+                await signInAnonymously(auth);
             } catch (e) {
-                console.error("Lỗi xác thực:", e);
+                console.error("Auth Error:", e);
+                isOfflineMode = true;
             }
         };
 
         initAuth();
 
-        if (auth) {
-            onAuthStateChanged(auth, (u) => {
-                user = u;
-                if (user) {
-                    const savedName = localStorage.getItem('wc_username_test');
-                    if (savedName) {
-                        currentUserData.name = savedName;
-                        setupRealtimeData();
-                    }
-                }
-            });
+        // Kiểm tra session cũ
+        const savedName = localStorage.getItem('wc_username_test');
+        if (savedName) {
+            currentUserData.name = savedName;
+            if (isOfflineMode) {
+                loadLocalData();
+                startAppUI();
+            } else if (auth) {
+                onAuthStateChanged(auth, (u) => {
+                    if (u) setupRealtimeData();
+                });
+            }
         }
 
         window.login = async () => {
             const nameInput = document.getElementById('username');
             const name = nameInput.value.trim();
             const btn = document.getElementById('login-btn');
-            const errorEl = document.getElementById('error-msg');
             
             if (!name) return;
-            if (!db) {
-                errorEl.innerText = "Cơ sở dữ liệu chưa sẵn sàng.";
-                errorEl.classList.remove('hidden');
-                return;
-            }
-            
             btn.disabled = true;
-            btn.innerText = "Đang kết nối...";
+            btn.innerText = "Đang xử lý...";
 
-            try {
-                currentUserData.name = name;
-                localStorage.setItem('wc_username_test', name);
-                
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', name);
-                const docSnap = await getDoc(userRef);
-                
-                if (!docSnap.exists()) {
-                    await setDoc(userRef, { name, predictions: {}, score: 0, correctCount: 0 });
+            currentUserData.name = name;
+            localStorage.setItem('wc_username_test', name);
+
+            if (isOfflineMode) {
+                loadLocalData();
+                startAppUI();
+            } else {
+                try {
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', name);
+                    const docSnap = await getDoc(userRef);
+                    if (!docSnap.exists()) {
+                        await setDoc(userRef, { name, predictions: {}, score: 0, correctCount: 0 });
+                    }
+                    setupRealtimeData();
+                } catch (e) {
+                    console.error("Login Cloud Error:", e);
+                    isOfflineMode = true;
+                    loadLocalData();
+                    startAppUI();
                 }
-                setupRealtimeData();
-            } catch (e) {
-                console.error("Lỗi đăng nhập:", e);
-                errorEl.innerText = "Không thể kết nối. Kiểm tra internet.";
-                errorEl.classList.remove('hidden');
-                btn.disabled = false;
-                btn.innerText = "Bắt đầu tham gia";
             }
         };
 
-        function setupRealtimeData() {
+        function loadLocalData() {
+            const localKey = `wc_data_${currentUserData.name}`;
+            const local = localStorage.getItem(localKey);
+            if (local) {
+                currentUserData = JSON.parse(local);
+            }
+            allPlayersData = [currentUserData]; // Trong mode offline chỉ thấy chính mình
+            recalculateAllPoints();
+            renderAll();
+        }
+
+        function startAppUI() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             document.getElementById('display-user').innerText = "Chào, " + currentUserData.name;
+            renderAll();
+        }
 
+        function setupRealtimeData() {
+            startAppUI();
             const q = collection(db, 'artifacts', appId, 'public', 'data', 'players');
             onSnapshot(q, (snapshot) => {
                 allPlayersData = [];
                 snapshot.forEach(doc => allPlayersData.push(doc.data()));
-                
                 const me = allPlayersData.find(p => p.name === currentUserData.name);
                 if (me) currentUserData = me;
-
                 recalculateAllPoints();
                 renderAll();
             }, (err) => {
-                console.error("Lỗi đồng bộ:", err);
+                console.error("Snapshot Error:", err);
             });
         }
 
@@ -244,21 +264,26 @@
 
             let hVal = parseInt(hEl.value);
             let aVal = parseInt(aEl.value);
-            
             if (isNaN(hVal) || hVal < 0) hVal = 0;
             if (isNaN(aVal) || aVal < 0) aVal = 0;
             
             hEl.value = hVal;
             aEl.value = aVal;
 
+            if (!currentUserData.predictions) currentUserData.predictions = {};
             currentUserData.predictions[mId] = { h: hVal, a: aVal };
             recalculateAllPoints();
 
-            try {
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', currentUserData.name);
-                await setDoc(userRef, currentUserData);
-            } catch (e) {
-                console.error("Lỗi lưu:", e);
+            if (isOfflineMode) {
+                localStorage.setItem(`wc_data_${currentUserData.name}`, JSON.stringify(currentUserData));
+                renderAll();
+            } else {
+                try {
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', currentUserData.name);
+                    await setDoc(userRef, currentUserData);
+                } catch (e) {
+                    console.error("Save Error:", e);
+                }
             }
         };
 
@@ -296,21 +321,12 @@
             const rank = sorted.findIndex(p => p.name === currentUserData.name) + 1;
             const predCount = Object.keys(currentUserData.predictions || {}).length;
             
-            const scoreEl = document.getElementById('dash-score');
-            if(scoreEl) scoreEl.innerText = currentUserData.score || 0;
-            
-            const rateEl = document.getElementById('dash-rate');
-            if(rateEl) rateEl.innerText = predCount > 0 ? Math.round(((currentUserData.correctCount || 0)/predCount)*100) + "%" : "0%";
-            
-            const correctEl = document.getElementById('dash-correct');
-            if(correctEl) correctEl.innerText = currentUserData.correctCount || 0;
-            
-            const rankEl = document.getElementById('dash-rank');
-            if(rankEl) rankEl.innerText = rank > 0 ? `#${rank}` : "-";
+            document.getElementById('dash-score').innerText = currentUserData.score || 0;
+            document.getElementById('dash-rate').innerText = predCount > 0 ? Math.round(((currentUserData.correctCount || 0)/predCount)*100) + "%" : "0%";
+            document.getElementById('dash-correct').innerText = currentUserData.correctCount || 0;
+            document.getElementById('dash-rank').innerText = rank > 0 ? `#${rank}` : "-";
 
             const list = document.getElementById('match-list');
-            if(!list) return;
-
             const now = new Date();
             list.innerHTML = liveMatches.map(m => {
                 const startTime = new Date(m.startTime);
@@ -350,19 +366,17 @@
             }).join('');
 
             const lb = document.getElementById('leaderboard');
-            if(lb) {
-                lb.innerHTML = sorted.map((p, i) => `
-                    <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'} transition-all">
-                        <div class="flex items-center gap-3">
-                            <span class="text-[10px] font-black opacity-40">${i + 1}</span>
-                            <span class="text-sm font-bold truncate w-24">${p.name}</span>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xs font-black">${p.score || 0}đ</p>
-                            <p class="text-[9px] font-bold opacity-60">${p.correctCount || 0} trận đúng</p>
-                        </div>
-                    </div>`).join('');
-            }
+            lb.innerHTML = sorted.map((p, i) => `
+                <div class="flex items-center justify-between p-3 rounded-2xl ${p.name === currentUserData.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50'} transition-all">
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-black opacity-40">${i + 1}</span>
+                        <span class="text-sm font-bold truncate w-24">${p.name}</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs font-black">${p.score || 0}đ</p>
+                        <p class="text-[9px] font-bold opacity-60">${p.correctCount || 0} trận đúng</p>
+                    </div>
+                </div>`).join('');
         }
 
         window.logout = () => { localStorage.removeItem('wc_username_test'); location.reload(); };
@@ -372,7 +386,6 @@
             const el = document.getElementById('current-time');
             if(el) el.innerText = new Date().toLocaleString('vi-VN');
         }, 1000);
-
     </script>
 </body>
 </html>
